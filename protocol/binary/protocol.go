@@ -22,6 +22,7 @@ package binary
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 
@@ -194,11 +195,13 @@ func (p *Protocol) DecodeRequest(et wire.EnvelopeType, r io.ReaderAt) (wire.Valu
 // 15 valid types today).
 //
 // Callers must call Close() on the stream.Reader once finished.
-func (p *Protocol) ReadRequest(et wire.EnvelopeType, r io.Reader, bodyFunc stream.ReadBodyFunc) (stream.ResponseWriter, error) {
+func (p *Protocol) ReadRequest(et wire.EnvelopeType, r io.Reader, h stream.CallHandler) (stream.ResponseWriter, error) {
 	var buf [2]byte
 
+	call := stream.Call{Request: p.Reader(bytes.NewReader(buf[:]))}
+
 	if count, _ := r.Read(buf[0:2]); count < 2 {
-		return NoEnvelopeResponder, bodyFunc(p.Reader(bytes.NewReader(buf[:])))
+		return NoEnvelopeResponder, h.HandleCall(context.Background(), &call)
 	}
 
 	// Reset the Reader to allow for properly reading the envelope, if it exists.
@@ -206,13 +209,14 @@ func (p *Protocol) ReadRequest(et wire.EnvelopeType, r io.Reader, bodyFunc strea
 	sr := p.Reader(r)
 	defer sr.Close()
 
+	call = stream.Call{Request: sr}
 	if buf[0] == 0x00 {
 		eh, err := p.readEnvelopeHeader(sr, et)
 		if err != nil {
 			return NoEnvelopeResponder, err
 		}
 
-		if err := bodyFunc(sr); err != nil {
+		if err := h.HandleCall(context.Background(), &call); err != nil {
 			return NoEnvelopeResponder, err
 		}
 
@@ -228,7 +232,7 @@ func (p *Protocol) ReadRequest(et wire.EnvelopeType, r io.Reader, bodyFunc strea
 			return NoEnvelopeResponder, err
 		}
 
-		if err := bodyFunc(sr); err != nil {
+		if err := h.HandleCall(context.Background(), &call); err != nil {
 			return NoEnvelopeResponder, err
 		}
 
@@ -240,7 +244,7 @@ func (p *Protocol) ReadRequest(et wire.EnvelopeType, r io.Reader, bodyFunc strea
 
 	// For anything else, the request is either not-enveloped or invalid, let the
 	// bodyFunc manage that data.
-	return NoEnvelopeResponder, bodyFunc(sr)
+	return NoEnvelopeResponder, h.HandleCall(context.Background(), &call)
 }
 
 func (p *Protocol) readEnvelopeHeader(sr stream.Reader, et wire.EnvelopeType) (stream.EnvelopeHeader, error) {
