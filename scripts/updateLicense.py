@@ -6,7 +6,7 @@ import re
 import sys
 from datetime import datetime
 
-CURRENT_YEAR = datetime.today().year
+CURRENT_YEAR = datetime.now().year
 
 LICENSE_BLOB = """Copyright (c) %d Uber Technologies, Inc.
 
@@ -29,8 +29,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.""" % CURRENT_YEAR
 
 LICENSE_BLOB_LINES_GO = [
-    ('// ' + l).strip() + '\n' for l in LICENSE_BLOB.split('\n')
+    f'// {l}'.strip() + '\n' for l in LICENSE_BLOB.split('\n')
 ]
+
 
 COPYRIGHT_RE = re.compile(r'Copyright \(c\) (\d+)', re.I)
 
@@ -53,7 +54,7 @@ def update_go_license(name):
             break
 
         new_line = COPYRIGHT_RE.sub('Copyright (c) %d' % CURRENT_YEAR, line)
-        assert line != new_line, ('Could not change year in: %s' % line)
+        assert line != new_line, f'Could not change year in: {line}'
         lines[i] = new_line
         changed = True
         break
@@ -69,7 +70,7 @@ def update_go_license(name):
         if i != 0:
             lines[i:i] = ['\n'] + LICENSE_BLOB_LINES_GO
         else:
-            lines[0:0] = LICENSE_BLOB_LINES_GO + ['\n']
+            lines[:0] = LICENSE_BLOB_LINES_GO + ['\n']
         changed = True
 
     if changed:
@@ -80,14 +81,14 @@ def update_go_license(name):
 
 def main():
     if len(sys.argv) == 1:
-        print('USAGE: %s FILE ...' % sys.argv[0])
+        print(f'USAGE: {sys.argv[0]} FILE ...')
         sys.exit(1)
 
     for name in sys.argv[1:]:
         if name.endswith('.go'):
             update_go_license(name)
         else:
-            raise NotImplementedError('Unsupported file type: %s' % name)
+            raise NotImplementedError(f'Unsupported file type: {name}')
 
 
 if __name__ == "__main__":
